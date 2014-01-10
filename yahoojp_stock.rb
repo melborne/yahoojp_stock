@@ -17,7 +17,7 @@ end
 module YahooJPStock
   BASE_URLS = {
     :quote => "http://stocks.finance.yahoo.co.jp/stocks/detail/",
-    :find  => "http://stocks.finance.yahoo.co.jp/stocks/search/",
+    :find  => "http://info.finance.yahoo.co.jp/search/?ei=UTF-8&view=l1",
     :history => "http://table.yahoo.co.jp/"
   }
 
@@ -34,8 +34,9 @@ module YahooJPStock
     include Interface
     def initialize(company_name)
       @company_name = URI.escape(company_name)
+      @headers = []
       @candidates = []
-      uri = BASE_URLS[:find] + "?s=" + @company_name
+      uri = [BASE_URLS[:find], "&query=", @company_name].join
       parse get(uri)
     end
 
@@ -44,16 +45,18 @@ module YahooJPStock
       when Net::HTTPSuccess
         parsed_html = Nokogiri::HTML(response.body)
         @company_name = parsed_html.css('title').text.sub(/：.*/, '')
+        list = []
         parsed_html.css('div.boardFinList tr').each do |tr|
-          @candidates << tr.search('td', 'th').inject([]) { |mem, item| mem << item.text; mem }
-        end
-        @candidates.map! do |ca|
-          if ca.length > 8
-            ca[5,2] = "#{ca[5]}(#{ca[6]})"
-            ca[3,2] = "#{ca[4]}(#{ca[3]})"
+          list << begin
+            tr.search('td', 'th').inject([]) { |mem, item| mem << item.text.strip; mem }
           end
-          ca[0..-2]
         end
+        headers, *candidates, _ = list
+        @headers = headers[0..-2]
+        @candidates =
+          candidates.map do |cand|
+            [ *cand[0..2], "#{cand[4]}(#{cand[3]})", cand[5] ]
+          end
       when Net::HTTPRedirection
         code = response['location'].match(/\?code=/).post_match
         q = Quote.new(code)
@@ -66,8 +69,12 @@ module YahooJPStock
       raise ParseError, "#{e.message}\n\n#{e.backtrace}"
     end
 
-    def output
-      @candidates
+    def output(header=true)
+      if header && !@candidates.empty?
+        [@headers] + @candidates
+      else
+        @candidates
+      end
     end
   end
   
@@ -174,7 +181,7 @@ module YahooJPStock
 end
 
 if __FILE__ == $0
-  p YahooJPStock::Quote.new('998405').output(:to_array)
-  #p YahooJPStock::Find.new('toyota').output
+  # p YahooJPStock::Quote.new('998405').output(:to_array)
+  p YahooJPStock::Find.new('toyota').output
   #p YahooJPStock::History.new('7203', '2010/1/10', '2010/2/10').output
 end
