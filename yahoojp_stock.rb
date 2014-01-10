@@ -3,17 +3,6 @@
 require "nokogiri"
 require "date"
 
-class String
-  def force_encode(encode)
-    if RUBY_VERSION < '1.9.0'
-      require 'kconv'
-      toutf8
-    else
-      force_encoding(encode)
-    end
-  end
-end
-
 module YahooJPStock
   BASE_URLS = {
     :quote => "http://stocks.finance.yahoo.co.jp/stocks/detail/",
@@ -162,7 +151,7 @@ module YahooJPStock
     def parse(response)
       case response
       when Net::HTTPSuccess
-        parsed_html = Nokogiri::HTML(response.body.force_encode('EUC-JP'))
+        parsed_html = Nokogiri::HTML(response.body.force_encoding('EUC-JP'))
         parsed_html.css("table > tr").each do |tr|
           bg = tr.attributes['bgcolor']
           next unless bg && ["#eeeeee", "#ffffff"].include?(bg.value)
@@ -182,6 +171,6 @@ end
 
 if __FILE__ == $0
   # p YahooJPStock::Quote.new('998405').output(:to_array)
-  p YahooJPStock::Find.new('toyota').output
-  #p YahooJPStock::History.new('7203', '2010/1/10', '2010/2/10').output
+  # p YahooJPStock::Find.new('toyota').output
+  p YahooJPStock::History.new('7203', '2010/1/10', '2010/2/10').output
 end
